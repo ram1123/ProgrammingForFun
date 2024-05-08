@@ -1,64 +1,113 @@
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+# Reference: https://medium.com/@msgold/using-python-to-create-and-solve-mazes-672285723c96
+import argparse
+import matplotlib.pyplot as plt
+import numpy as np
 import random
+from matplotlib.backends.backend_pdf import PdfPages
 
 
-def generate_maze(width, height):
-    maze = [[1] * width for _ in range(height)]
+def create_maze(dim):
+    # Create a grid filled with walls
+    maze = np.ones((dim * 2 + 1, dim * 2 + 1))
 
-    def dfs(x, y):
-        maze[y][x] = 0
-        directions = [(2, 0), (-2, 0), (0, 2), (0, -2)]
+    # Define the starting point
+    x, y = (0, 0)
+    maze[2 * x + 1, 2 * y + 1] = 0
+
+    # Initialize the stack with the starting point
+    stack = [(x, y)]
+    while stack:
+        x, y = stack[-1]
+
+        # Define possible directions
+        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
         random.shuffle(directions)
+
         for dx, dy in directions:
             nx, ny = x + dx, y + dy
-            if 0 <= nx < width and 0 <= ny < height and maze[ny][nx] == 1:
-                maze[ny][nx] = 0
-                maze[y + dy // 2][x + dx // 2] = 0
-                dfs(nx, ny)
+            if (
+                0 <= nx < dim
+                and 0 <= ny < dim
+                and maze[2 * nx + 1, 2 * ny + 1] == 1
+            ):
+                maze[2 * nx + 1, 2 * ny + 1] = 0
+                maze[2 * x + 1 + dx, 2 * y + 1 + dy] = 0
+                stack.append((nx, ny))
+                break
+        else:
+            stack.pop()
 
-    # Start DFS from a cell that does not affect the outer walls
-    dfs(1, 1)
-    # Ensure the borders remain intact
-    for i in range(width):
-        maze[0][i] = 1
-        maze[height - 1][i] = 1
-    for i in range(height):
-        maze[i][0] = 1
-        maze[i][width - 1] = 1
+    # Create an entrance and an exit
+    maze[1, 0] = 0
+    maze[-2, -1] = 0
 
-    # Create entry and exit
-    maze[1][0] = 0  # Entry at top just after the corner
-    maze[height - 2][width - 1] = 0  # Exit at bottom just before the corner
     return maze
 
 
-def save_maze_to_pdf(maze, filename):
-    c = canvas.Canvas(filename, pagesize=letter)
-    cell_size = 20  # Adjust cell size as needed
-    maze_width = len(maze[0])
-    maze_height = len(maze)
+def draw_maze(maze, ax):
+    ax.imshow(maze, cmap=plt.cm.binary, interpolation="nearest")
+    ax.set_xticks([])
+    ax.set_yticks([])
 
-    # Center the maze on the page
-    page_width, page_height = letter
-    x_offset = (page_width - maze_width * cell_size) / 2
-    y_offset = (page_height - maze_height * cell_size) / 2
+    # Draw entry and exit arrows
+    ax.arrow(0, 1, 0.4, 0, fc="green", ec="green", head_width=0.3, head_length=0.3)
+    ax.arrow(
+        maze.shape[1] - 1,
+        maze.shape[0] - 2,
+        0.4,
+        0,
+        fc="blue",
+        ec="blue",
+        head_width=0.3,
+        head_length=0.3,
+    )
 
-    # Draw walls
-    for y in range(maze_height):
-        for x in range(maze_width):
-            if maze[y][x] == 1:
-                c.rect(
-                    x * cell_size + x_offset,
-                    page_height - (y + 1) * cell_size - y_offset,
-                    cell_size,
-                    cell_size,
-                    fill=1,
-                )
+def main():
+    parser = argparse.ArgumentParser(description="Generate and save mazes as PDF.")
+    parser.add_argument(
+        "--mode",
+        choices=["single", "multiple"],
+        required=True,
+        help="Choose 'single' for one maze or 'multiple' for multiple mazes.",
+    )
+    parser.add_argument(
+        "--dimension", type=int, help="Dimension of the maze if single mode."
+    )
+    parser.add_argument(
+        "--range_start", type=int, help="Start of dimension range for multiple mazes."
+    )
+    parser.add_argument(
+        "--range_end", type=int, help="End of dimension range for multiple mazes."
+    )
+    parser.add_argument(
+        "--number", type=int, help="Number of mazes per dimension in multiple mode."
+    )
+    args = parser.parse_args()
 
-    c.save()
+    if args.mode == "single":
+        if args.dimension is None:
+            raise ValueError("Dimension is required for single maze mode.")
+        maze = create_maze(args.dimension)
+        fig, ax = plt.subplots(figsize=(8, 8))
+        draw_maze(maze, ax)
+        plt.savefig("single_maze.pdf")
+        plt.close(fig)
+        print("Generated single maze saved to single_maze.pdf")
+    elif args.mode == "multiple":
+        if None in (args.range_start, args.range_end, args.number):
+            raise ValueError(
+                "Range start, range end, and number are required for multiple mazes mode."
+            )
+        with PdfPages("multiple_mazes.pdf") as pdf:
+            for dim in range(args.range_start, args.range_end + 1):
+                for _ in range(args.number):
+                    maze = create_maze(dim)
+                    fig, ax = plt.subplots(figsize=(8, 8))
+                    draw_maze(maze, ax)
+                    pdf.savefig(fig)
+                    plt.close(fig)
+            print("Generated multiple mazes saved to multiple_mazes.pdf")
 
 
-# Example usage:
-maze = generate_maze(20, 20)  # Adjust size as needed
-save_maze_to_pdf(maze, "maze.pdf")
+if __name__ == "__main__":
+    main()
