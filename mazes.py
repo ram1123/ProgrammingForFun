@@ -1,4 +1,5 @@
 # Reference: https://medium.com/@msgold/using-python-to-create-and-solve-mazes-672285723c96
+import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 import random
@@ -61,18 +62,52 @@ def draw_maze(maze, ax):
         head_length=0.3,
     )
 
+def main():
+    parser = argparse.ArgumentParser(description="Generate and save mazes as PDF.")
+    parser.add_argument(
+        "--mode",
+        choices=["single", "multiple"],
+        required=True,
+        help="Choose 'single' for one maze or 'multiple' for multiple mazes.",
+    )
+    parser.add_argument(
+        "--dimension", type=int, help="Dimension of the maze if single mode."
+    )
+    parser.add_argument(
+        "--range_start", type=int, help="Start of dimension range for multiple mazes."
+    )
+    parser.add_argument(
+        "--range_end", type=int, help="End of dimension range for multiple mazes."
+    )
+    parser.add_argument(
+        "--number", type=int, help="Number of mazes per dimension in multiple mode."
+    )
+    args = parser.parse_args()
+
+    if args.mode == "single":
+        if args.dimension is None:
+            raise ValueError("Dimension is required for single maze mode.")
+        maze = create_maze(args.dimension)
+        fig, ax = plt.subplots(figsize=(8, 8))
+        draw_maze(maze, ax)
+        plt.savefig("single_maze.pdf")
+        plt.close(fig)
+        print("Generated single maze saved to single_maze.pdf")
+    elif args.mode == "multiple":
+        if None in (args.range_start, args.range_end, args.number):
+            raise ValueError(
+                "Range start, range end, and number are required for multiple mazes mode."
+            )
+        with PdfPages("multiple_mazes.pdf") as pdf:
+            for dim in range(args.range_start, args.range_end + 1):
+                for _ in range(args.number):
+                    maze = create_maze(dim)
+                    fig, ax = plt.subplots(figsize=(8, 8))
+                    draw_maze(maze, ax)
+                    pdf.savefig(fig)
+                    plt.close(fig)
+            print("Generated multiple mazes saved to multiple_mazes.pdf")
+
 
 if __name__ == "__main__":
-
-    # dim = int(input("Enter the dimension of the maze: "))
-    # maze = create_maze(dim)
-    # draw_maze(maze, "maze.pdf")
-
-    with PdfPages("mazes.pdf") as pdf:
-        for dim in range(7, 15):  # For dimensions from 3 to 21
-            for _ in range(10):  # Generate 10 mazes for each dimension
-                maze = create_maze(dim)
-                fig, ax = plt.subplots(figsize=(8, 8))
-                draw_maze(maze, ax)
-                pdf.savefig(fig)  # Save the current figure into the pdf
-                plt.close(fig)  # Close the figure to free up memory
+    main()
